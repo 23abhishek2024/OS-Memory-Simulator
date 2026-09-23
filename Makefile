@@ -1,26 +1,12 @@
 CXX = g++
-CXXFLAGS = -std=c++14 -O2 -Wall -Wextra -Iinclude
+CXXFLAGS = -std=c++14 -O2 -Iinclude
 
-SRCS = src/FIFOReplacement.cpp \
-       src/LRUReplacement.cpp \
-       src/LFUReplacement.cpp \
-       src/MFUReplacement.cpp \
-       src/OptimalReplacement.cpp \
-       src/ClockReplacement.cpp \
-       src/PageTable.cpp \
-       src/TLB.cpp \
-       src/VirtualMemoryEngine.cpp \
-       src/BeladyAnomalyDetector.cpp \
-       src/BenchmarkRunner.cpp \
-       src/Visualizer.cpp \
-       src/main.cpp
-
+SRCS = src/PageReplacement.cpp src/VirtualMemory.cpp src/main.cpp
 TARGET = vmem_simulator.exe
 
 all: $(TARGET)
 
 $(TARGET): $(SRCS)
-	@mkdir -p logs
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRCS)
 
 test: $(TARGET)
