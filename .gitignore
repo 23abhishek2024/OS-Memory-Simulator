@@ -1,0 +1,15 @@
+# Binaries & executables
+*.exe
+*.o
+*.obj
+*.out
+
+# Logs
+# Keep directory structure but ignore ad-hoc dumps
+*.tmp
+
+# VS Code & IDE settings
+.vscode/
+.idea/
+*.suo
+*.user

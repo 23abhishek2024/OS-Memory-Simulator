@@ -1,0 +1,25 @@
+Workload,Algorithm,Frames,TotalReferences,PageHits,PageFaults,HitRatioPercent,FaultRatioPercent,Evictions,DirtyWritebacks,EAT_Nanoseconds
+"Locality of Reference (80/20)","FIFO",4,100,69,31,69.00,31.00,27,12,3920110.00
+"Locality of Reference (80/20)","LRU",4,100,78,22,78.00,22.00,18,6,2480110.00
+"Locality of Reference (80/20)","LFU",4,100,79,21,79.00,21.00,17,5,2280110.00
+"Locality of Reference (80/20)","MFU",4,100,66,34,66.00,34.00,30,17,4760110.00
+"Locality of Reference (80/20)","Optimal (OPT)",4,100,84,16,84.00,16.00,12,4,1760110.00
+"Locality of Reference (80/20)","Clock (Second Chance)",4,100,71,29,71.00,29.00,25,11,3640110.00
+"Cyclic Loop / Thrashing","FIFO",4,50,0,50,0.00,100.00,46,8,9920110.00
+"Cyclic Loop / Thrashing","LRU",4,50,0,50,0.00,100.00,46,8,9920110.00
+"Cyclic Loop / Thrashing","LFU",4,50,0,50,0.00,100.00,46,8,9920110.00
+"Cyclic Loop / Thrashing","MFU",4,50,0,50,0.00,100.00,46,8,9920110.00
+"Cyclic Loop / Thrashing","Optimal (OPT)",4,50,34,16,68.00,32.00,12,6,4000110.00
+"Cyclic Loop / Thrashing","Clock (Second Chance)",4,50,0,50,0.00,100.00,46,8,9920110.00
+"Random Uniform Access","FIFO",5,100,25,75,25.00,75.00,70,21,8520110.00
+"Random Uniform Access","LRU",5,100,22,78,22.00,78.00,73,21,8760110.00
+"Random Uniform Access","LFU",5,100,25,75,25.00,75.00,70,20,8400110.00
+"Random Uniform Access","MFU",5,100,25,75,25.00,75.00,70,22,8640110.00
+"Random Uniform Access","Optimal (OPT)",5,100,47,53,47.00,53.00,48,17,6280110.00
+"Random Uniform Access","Clock (Second Chance)",5,100,25,75,25.00,75.00,70,21,8520110.00
+"Bélády's Anomaly Workload","FIFO",3,12,3,9,25.00,75.00,6,0,6000110.00
+"Bélády's Anomaly Workload","LRU",3,12,2,10,16.67,83.33,7,0,6666776.67
+"Bélády's Anomaly Workload","LFU",3,12,2,10,16.67,83.33,7,0,6666776.67
+"Bélády's Anomaly Workload","MFU",3,12,3,9,25.00,75.00,6,0,6000110.00
+"Bélády's Anomaly Workload","Optimal (OPT)",3,12,5,7,41.67,58.33,4,0,4666776.67
+"Bélády's Anomaly Workload","Clock (Second Chance)",3,12,3,9,25.00,75.00,6,0,6000110.00

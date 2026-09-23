@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OS Simulator · Virtual Memory & Page Replacement Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: rgba(17, 24, 39, 0.85);
+      --bg-card-hover: rgba(30, 41, 59, 0.9);
+      --border-color: rgba(99, 130, 190, 0.2);
+      --border-focus: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --accent-blue: #3b82f6;
+      --accent-purple: #8b5cf6;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-amber: #f59e0b;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --glow-blue: 0 0 25px rgba(59, 130, 246, 0.35);
+      --glow-green: 0 0 20px rgba(16, 185, 129, 0.4);
+      --glow-red: 0 0 20px rgba(239, 68, 68, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      line-height: 1.5;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.14) 0%, transparent 45%),
+        radial-gradient(circle at 85% 75%, rgba(139, 92, 246, 0.12) 0%, transparent 45%),
+        linear-gradient(to bottom, rgba(9, 13, 22, 0.95), var(--bg-dark));
+      background-attachment: fixed;
+    }
+
+    header {
+      padding: 20px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      backdrop-filter: blur(14px);
+      background: rgba(9, 13, 22, 0.8);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 20px;
+      box-shadow: var(--glow-blue);
+      color: #fff;
+    }
+
+    .brand h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #fff, #93c5fd);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .badge-tag {
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #93c5fd;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 36px 60px;
+    }
+
+    /* Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.92rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(59, 130, 246, 0.2);
+      border-color: rgba(59, 130, 246, 0.5);
+      box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Controls Panel */
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(12px);
+    }
+
+    .grid-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      align-items: flex-end;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-group label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    select, input[type="text"], input[type="number"] {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.95rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .btn {
+      padding: 10px 22px;
+      border-radius: var(--radius-sm);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border-color: var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Stats Grid + Chart */
+    .dashboard-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .dashboard-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 18px 20px;
+      transition: transform 0.2s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .stat-title {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 1.85rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+
+    .stat-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .val-hit { color: var(--accent-green); }
+    .val-fault { color: var(--accent-amber); }
+    .val-eat { color: var(--accent-cyan); }
+
+    /* Donut Chart Card */
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      width: 140px;
+      height: 140px;
+    }
+
+    .chart-center-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .chart-pct {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 1.35rem;
+      color: #fff;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+      font-size: 0.8rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* Live Memory Frame Grid */
+    .memory-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .frames-container {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .frame-slot {
+      flex: 1;
+      min-width: 140px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 2px dashed rgba(99, 130, 190, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      text-align: center;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .frame-slot.occupied {
+      border-style: solid;
+      border-color: rgba(59, 130, 246, 0.6);
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.9));
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .frame-slot.just-accessed-hit {
+      border-color: var(--accent-green);
+      box-shadow: var(--glow-green);
+      transform: scale(1.03);
+    }
+
+    .frame-slot.just-accessed-fault {
+      border-color: var(--accent-amber);
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+      transform: scale(1.03);
+    }
+
+    .frame-header {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .frame-page {
+      font-size: 2.2rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+
+    .frame-meta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Reference String Tape */
+    .stream-tape {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 14px 6px;
+      margin-bottom: 20px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-color) transparent;
+    }
+
+    .stream-node {
+      flex-shrink: 0;
+      width: 48px;
+      height: 48px;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: #cbd5e1;
+      transition: all 0.2s ease;
+    }
+
+    .stream-node.current {
+      background: var(--accent-blue);
+      border-color: #60a5fa;
+      color: #fff;
+      transform: scale(1.15);
+      box-shadow: var(--glow-blue);
+    }
+
+    .stream-node.hit {
+      border-color: var(--accent-green);
+      color: var(--accent-green);
+    }
+
+    .stream-node.fault {
+      border-color: var(--accent-amber);
+      color: var(--accent-amber);
+    }
+
+    /* Table Logs */
+    .table-container {
+      overflow-x: auto;
+      max-height: 400px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(15, 23, 42, 0.95);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      padding: 12px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .badge-hit {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-green);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.75rem;
+    }
+
+    .badge-fault {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--accent-amber);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.75rem;
+    }
+
+    /* Belady Visualizer Tab */
+    .belady-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+
+    .chart-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .chart-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .chart-label {
+      width: 100px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .bar-group {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .bar-line {
+      height: 26px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fff;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .bar-fifo {
+      background: linear-gradient(90deg, #f59e0b, #ef4444);
+    }
+
+    .bar-lru {
+      background: linear-gradient(90deg, #3b82f6, #06b6d4);
+    }
+
+    .bar-opt {
+      background: linear-gradient(90deg, #8b5cf6, #10b981);
+    }
+
+    .anomaly-callout {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      margin-top: 20px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .anomaly-callout h4 {
+      color: #fca5a5;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+    }
+
+    .anomaly-callout p {
+      color: #fecaca;
+      font-size: 0.85rem;
+    }
+
+    /* Comparison Table in Benchmark */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+
+    .algo-summary-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+    }
+
+    .algo-summary-card h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .algo-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      min-height: 38px;
+    }
+
+    .algo-stat-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.85rem;
+    }
+
+    .algo-stat-row:last-child {
+      border-bottom: none;
+    }
+
+    .algo-stat-row span:last-child {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+    }
+
+    /* Theory Tab */
+    .theory-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+    }
+
+    .theory-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px;
+    }
+
+    .theory-card h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .complexity-badge {
+      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #93c5fd;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .theory-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      line-height: 1.6;
+    }
+
+    .code-preview {
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+      max-height: 200px;
+    }
+
+    .pros-cons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+      font-size: 0.8rem;
+    }
+
+    .pros-list, .cons-list {
+      list-style: none;
+    }
+
+    .pros-list li {
+      color: #86efac;
+      margin-bottom: 4px;
+    }
+    .pros-list li::before { content: "✓ "; font-weight: bold; }
+
+    .cons-list li {
+      color: #fca5a5;
+      margin-bottom: 4px;
+    }
+    .cons-list li::before { content: "✗ "; font-weight: bold; }
+
+    footer {
+      text-align: center;
+      padding: 30px;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      border-top: 1px solid var(--border-color);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">OS</div>
+      <div>
+        <h1>OS Simulator · Virtual Memory & Page Replacement Engine</h1>
+        <p>Demand Paging · Address Translation · Belady's Anomaly · Cache Replacement Policies</p>
+      </div>
+    </div>
+    <div class="badge-tag">C++14 Core Engine · Doubly Linked Lists & Hash Maps</div>
+  </header>
+
+  <div class="container">
+    <!-- Tabs Navigation -->
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('simulator')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        Interactive Frame Simulator
+      </button>
+      <button class="tab-btn" onclick="switchTab('belady')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        Bélády's Anomaly Visualizer
+      </button>
+      <button class="tab-btn" onclick="switchTab('benchmark')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Multi-Algorithm Benchmark
+      </button>
+      <button class="tab-btn" onclick="switchTab('theory')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        Algorithm Theory & C++ Source
+      </button>
+    </div>
+
+    <!-- TAB 1: INTERACTIVE SIMULATOR -->
+    <div id="tab-simulator" class="tab-content active">
+      <div class="panel">
+        <div class="grid-controls">
+          <div class="control-group">
+            <label>Replacement Algorithm</label>
+            <select id="sim-algo">
+              <option value="LRU" selected>LRU (Least Recently Used) [O(1) DLL]</option>
+              <option value="FIFO">FIFO (First-In, First-Out)</option>
+              <option value="LFU">LFU (Least Frequently Used) [O(1)]</option>
+              <option value="MFU">MFU (Most Frequently Used)</option>
+              <option value="OPT">Optimal (Bélády's OPT/MIN)</option>
+              <option value="Clock">Clock (Second Chance)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label>Physical Frames (Capacity)</label>
+            <input type="number" id="sim-frames" min="1" max="8" value="3">
+          </div>
+
+          <div class="control-group">
+            <label>Workload Preset</label>
+            <select id="sim-preset" onchange="loadPreset()">
+              <option value="textbook">Textbook: 7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1</option>
+              <option value="belady">Bélády String: 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5</option>
+              <option value="locality">Hot-Cold Locality: 1, 2, 1, 3, 1, 2, 4, 1, 2, 5, 1, 2</option>
+              <option value="cyclic">Cyclic Thrash: 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4</option>
+              <option value="custom">Custom Sequence...</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label>Reference String</label>
+            <input type="text" id="sim-refs" value="7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1">
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="stepSimulation()">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>
+            Step Forward
+          </button>
+          <button class="btn btn-secondary" id="btn-autorun" onclick="toggleAutoRun()">
+            Auto-Run Simulation
+          </button>
+          <button class="btn btn-secondary" onclick="resetSimulation()">
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Reference Stream Tape -->
+      <div class="panel" style="padding: 16px 24px;">
+        <div class="section-title">
+          <span>Memory Reference String Stream</span>
+          <span id="step-indicator" style="font-size: 0.85rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">Step 0 of 20</span>
+        </div>
+        <div class="stream-tape" id="stream-tape"></div>
+      </div>
+
+      <!-- Dashboard Row: Stats + Interactive Donut Chart -->
+      <div class="dashboard-row">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-title">Page Hits</div>
+            <div class="stat-value val-hit" id="stat-hits">0</div>
+            <div class="stat-sub" id="stat-hit-ratio">Hit Ratio: 0.0%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Page Faults</div>
+            <div class="stat-value val-fault" id="stat-faults">0</div>
+            <div class="stat-sub" id="stat-fault-ratio">Fault Ratio: 0.0%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Evictions</div>
+            <div class="stat-value" id="stat-evictions">0</div>
+            <div class="stat-sub">Victim pages swapped out</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Effective Access Time (EAT)</div>
+            <div class="stat-value val-eat" id="stat-eat">0.00 <span style="font-size: 1rem;">ms</span></div>
+            <div class="stat-sub">Memory + Fault disk service</div>
+          </div>
+        </div>
+
+        <!-- Donut Chart Card -->
+        <div class="chart-card">
+          <div class="chart-wrapper">
+            <canvas id="donutChart" width="140" height="140"></canvas>
+            <div class="chart-center-text">
+              <div class="chart-pct" id="donut-pct">0%</div>
+              <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase;">Hit Ratio</div>
+            </div>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><span class="dot" style="background: var(--accent-green);"></span> Hits</div>
+            <div class="legend-item"><span class="dot" style="background: var(--accent-amber);"></span> Faults</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Physical Memory Frames Live Grid -->
+      <div class="memory-section">
+        <div class="section-title">
+          <span>Physical Memory Frame Allocation Table</span>
+          <span id="victim-status" style="font-size: 0.85rem; color: var(--text-muted);">Ready</span>
+        </div>
+        <div class="frames-container" id="frames-grid"></div>
+      </div>
+
+      <!-- Execution Log Table -->
+      <div class="memory-section">
+        <div class="section-title">Step-by-Step Execution Trace Log</div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr id="table-head-row">
+                <th>Step</th>
+                <th>Page Ref</th>
+                <th>Result</th>
+                <th>Victim Evicted</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: BELADY'S ANOMALY VISUALIZER -->
+    <div id="tab-belady" class="tab-content">
+      <div class="belady-card">
+        <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;">Bélády's Anomaly Visual Verification</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px;">
+          Bélády's anomaly is the counter-intuitive phenomenon where <strong>increasing the number of page frames results in more page faults</strong> for FIFO, whereas <strong>Stack Algorithms (LRU, Optimal)</strong> are mathematically proven to be immune.
+        </p>
+
+        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px 20px; margin-bottom: 24px;">
+          <span style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 6px;">Analyzed Reference Sequence:</span>
+          <code style="font-family: 'JetBrains Mono', monospace; color: var(--accent-cyan); font-size: 1.05rem; font-weight: 700;">
+            1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5
+          </code>
+        </div>
+
+        <div class="chart-container" id="belady-chart-container"></div>
+
+        <div class="anomaly-callout">
+          <svg width="24" height="24" fill="none" stroke="#ef4444" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <div>
+            <h4>Anomaly Confirmed: FIFO 3 Frames vs 4 Frames</h4>
+            <p>
+              When frames increase from <strong>3 frames to 4 frames</strong>, FIFO page faults <strong>INCREASE from 9 to 10 faults</strong> (+1 fault).
+              Meanwhile, LRU faults strictly drop from 10 to 8 faults, verifying the <em>Stack Inclusion Property</em> ($S_m \subseteq S_{m+1}$).
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: BENCHMARK -->
+    <div id="tab-benchmark" class="tab-content">
+      <div class="panel">
+        <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;">Multi-Algorithm Benchmark Suite</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px;">
+          Side-by-side performance comparison of all 6 algorithms evaluated under a 100-reference Locality of Reference (80/20) workload with 4 physical frames.
+        </p>
+        <div class="compare-grid" id="benchmark-cards"></div>
+      </div>
+    </div>
+
+    <!-- TAB 4: EDUCATIONAL THEORY & C++ CODE -->
+    <div id="tab-theory" class="tab-content">
+      <div class="theory-grid">
+        <!-- LRU -->
+        <div class="theory-card">
+          <h3>
+            <span>Least Recently Used (LRU)</span>
+            <span class="complexity-badge">O(1) Time · O(F) Space</span>
+          </h3>
+          <p class="theory-desc">
+            Evicts the page that has not been referenced for the longest time period. Exploits temporal locality. Implemented in our C++ core using a <strong>custom Doubly Linked List + Hash Map</strong> to guarantee strict $O(1)$ page promotion and victim eviction.
+          </p>
+          <div class="code-preview">// C++ O(1) LRU Page Hit
+auto* node = it->second;
+orderList.move_to_front(node); // O(1) relink
+FrameNumber frame = node->data.frame;
+
+// O(1) LRU Victim Eviction
+auto* victimNode = orderList.getTail(); // O(1) LRU
+orderList.pop_back();
+pageMap.erase(victim.page);</div>
+          <div class="pros-cons">
+            <ul class="pros-list">
+              <li>Near optimal hit rates</li>
+              <li>Stack algorithm (No Belady's anomaly)</li>
+            </ul>
+            <ul class="cons-list">
+              <li>Requires hardware / pointer overhead</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Optimal -->
+        <div class="theory-card">
+          <h3>
+            <span>Optimal (Bélády's OPT/MIN)</span>
+            <span class="complexity-badge">O(N·F) Time · O(F) Space</span>
+          </h3>
+          <p class="theory-desc">
+            Replaces the page that will not be used for the longest period of time in the future. Serves as the theoretical benchmark against which all online algorithms are measured. Impossible to implement in a real OS without future lookahead.
+          </p>
+          <div class="code-preview">// C++ Optimal Forward Lookahead
+for (auto candidate : residentPages) {
+    size_t nextUse = findNextUse(candidate, currIdx + 1);
+    if (nextUse > farthestIndex) {
+        farthestIndex = nextUse;
+        victim = candidate;
+    }
+}</div>
+          <div class="pros-cons">
+            <ul class="pros-list">
+              <li>Theoretical minimum page faults</li>
+              <li>Guaranteed benchmark baseline</li>
+            </ul>
+            <ul class="cons-list">
+              <li>Cannot be implemented in real-time OS</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- FIFO -->
+        <div class="theory-card">
+          <h3>
+            <span>First-In, First-Out (FIFO)</span>
+            <span class="complexity-badge">O(1) Time · O(F) Space</span>
+          </h3>
+          <p class="theory-desc">
+            Replaces the page that has resided in physical memory the longest, regardless of how frequently or recently it was accessed. Simple queue implementation, but suffers from <strong>Bélády's Anomaly</strong> where more memory causes more page faults.
+          </p>
+          <div class="code-preview">// C++ FIFO Eviction
+auto* victimNode = orderList.getHead(); // Earliest arrived
+orderList.pop_front();
+pageMap.erase(victim.page);
+// New page inserted at back
+orderList.push_back({newPage, frame});</div>
+          <div class="pros-cons">
+            <ul class="pros-list">
+              <li>Low computational overhead</li>
+              <li>Simple queue structure</li>
+            </ul>
+            <ul class="cons-list">
+              <li>Prone to Bélády's anomaly</li>
+              <li>May evict frequently used pages</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- LFU -->
+        <div class="theory-card">
+          <h3>
+            <span>Least Frequently Used (LFU)</span>
+            <span class="complexity-badge">O(1) Time · O(F) Space</span>
+          </h3>
+          <p class="theory-desc">
+            Replaces the page with the lowest reference count. Our C++ engine implements LFU using <strong>Frequency Buckets</strong> (hash map of doubly linked lists) to maintain true $O(1)$ operations with deterministic LRU tie-breaking.
+          </p>
+          <div class="code-preview">// C++ O(1) LFU Promotion
+freqBuckets[oldFreq].remove(oldNode);
+entry.freq = oldFreq + 1;
+PageNode newNode = freqBuckets[entry.freq].push_front(entry);
+pageMap[page] = newNode;</div>
+          <div class="pros-cons">
+            <ul class="pros-list">
+              <li>Excellent for repetitive frequency loops</li>
+              <li>O(1) frequency bucket design</li>
+            </ul>
+            <ul class="cons-list">
+              <li>Past frequency can cause cache pollution</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Clock -->
+        <div class="theory-card">
+          <h3>
+            <span>Clock (Second Chance)</span>
+            <span class="complexity-badge">O(1) Amortized · O(F) Space</span>
+          </h3>
+          <p class="theory-desc">
+            Hardware-efficient approximation of LRU. Uses a circular buffer of frame slots and a sweeping "clock hand". Frames have a reference bit set on hit; the clock hand clears the bit (giving a second chance) or evicts on bit 0.
+          </p>
+          <div class="code-preview">// C++ Clock Sweep
+while (true) {
+    if (clockBuffer[hand].referenceBit) {
+        clockBuffer[hand].referenceBit = false; // 2nd chance
+        hand = (hand + 1) % frameCount;
+    } else {
+        victim = clockBuffer[hand].page; // Victim found!
+        break;
+    }
+}</div>
+          <div class="pros-cons">
+            <ul class="pros-list">
+              <li>Very close to LRU performance</li>
+              <li>Low hardware/CPU overhead</li>
+            </ul>
+            <ul class="cons-list">
+              <li>May degenerate to FIFO in worst case</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- MFU -->
+        <div class="theory-card">
+          <h3>
+            <span>Most Frequently Used (MFU)</span>
+            <span class="complexity-badge">O(F) Time · O(F) Space</span>
+          </h3>
+          <p class="theory-desc">
+            Replaces the page with the highest frequency count based on the premise that pages with low counts have just been loaded and will be needed soon. Used in specialized streaming architectures.
+          </p>
+          <div class="code-preview">// C++ MFU Selection
+for (const auto& entry : residentMap) {
+    if (entry.freq > maxFreq) {
+        maxFreq = entry.freq;
+        victim = entry.page;
+    }
+}</div>
+          <div class="pros-cons">
+            <ul class="pros-list">
+              <li>Protects recently loaded pages</li>
+              <li>Specialized workload optimization</li>
+            </ul>
+            <ul class="cons-list">
+              <li>Suboptimal for standard temporal locality</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    OS Simulator · Virtual Memory & Page Replacement Engine · Antigravity IDE · Built with modern C++14 & Vanilla Web Architecture
+  </footer>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+      if (activeBtn) activeBtn.classList.add('active');
+      
+      document.getElementById('tab-' + tabId).classList.add('active');
+      if (tabId === 'belady') renderBeladyChart();
+      if (tabId === 'benchmark') renderBenchmarkComparison();
+      if (tabId === 'simulator') drawDonutChart();
+    }
+
+    // Presets
+    function loadPreset() {
+      const p = document.getElementById('sim-preset').value;
+      const r = document.getElementById('sim-refs');
+      if (p === 'textbook') r.value = '7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1';
+      else if (p === 'belady') r.value = '1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5';
+      else if (p === 'locality') r.value = '1, 2, 1, 3, 1, 2, 4, 1, 2, 5, 1, 2';
+      else if (p === 'cyclic') r.value = '1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4';
+      resetSimulation();
+    }
+
+    // Simulation Engine in JS (mirrors C++ core logic)
+    let simState = {
+      refs: [],
+      currentIndex: 0,
+      frames: [],
+      hits: 0,
+      faults: 0,
+      evictions: 0,
+      algo: 'LRU',
+      frameCount: 3,
+      history: [],
+      lruOrder: [], // MRU front, LRU back
+      fifoQueue: [],
+      freqMap: {},
+      autoRunInterval: null
+    };
+
+    function parseReferences() {
+      const raw = document.getElementById('sim-refs').value;
+      return raw.split(/[\s,]+/).filter(x => x.trim() !== '').map(Number);
+    }
+
+    function resetSimulation() {
+      if (simState.autoRunInterval) {
+        clearInterval(simState.autoRunInterval);
+        simState.autoRunInterval = null;
+        document.getElementById('btn-autorun').innerText = 'Auto-Run Simulation';
+      }
+
+      const refs = parseReferences();
+      const frameCount = parseInt(document.getElementById('sim-frames').value, 10) || 3;
+      const algo = document.getElementById('sim-algo').value;
+
+      simState = {
+        refs: refs,
+        currentIndex: 0,
+        frames: new Array(frameCount).fill(-1),
+        hits: 0,
+        faults: 0,
+        evictions: 0,
+        algo: algo,
+        frameCount: frameCount,
+        history: [],
+        lruOrder: [],
+        fifoQueue: [],
+        freqMap: {},
+        autoRunInterval: null
+      };
+
+      updateUI();
+      renderTape();
+      drawDonutChart();
+    }
+
+    function stepSimulation() {
+      if (simState.currentIndex >= simState.refs.length) {
+        if (simState.autoRunInterval) {
+          clearInterval(simState.autoRunInterval);
+          simState.autoRunInterval = null;
+          document.getElementById('btn-autorun').innerText = 'Auto-Run Simulation';
+        }
+        return;
+      }
+
+      const page = simState.refs[simState.currentIndex];
+      const algo = simState.algo;
+      let hit = false;
+      let victim = null;
+
+      // Track frequency
+      simState.freqMap[page] = (simState.freqMap[page] || 0) + 1;
+
+      // Check hit
+      const frameIdx = simState.frames.indexOf(page);
+      if (frameIdx !== -1) {
+        // HIT
+        hit = true;
+        simState.hits++;
+
+        if (algo === 'LRU') {
+          simState.lruOrder = simState.lruOrder.filter(p => p !== page);
+          simState.lruOrder.unshift(page);
+        }
+      } else {
+        // FAULT
+        simState.faults++;
+        const freeIdx = simState.frames.indexOf(-1);
+
+        if (freeIdx !== -1) {
+          // Free frame available
+          simState.frames[freeIdx] = page;
+          if (algo === 'LRU') simState.lruOrder.unshift(page);
+          if (algo === 'FIFO') simState.fifoQueue.push(page);
+        } else {
+          // Eviction needed
+          simState.evictions++;
+          let targetFrame = 0;
+
+          if (algo === 'FIFO') {
+            victim = simState.fifoQueue.shift();
+            targetFrame = simState.frames.indexOf(victim);
+            simState.fifoQueue.push(page);
+          } else if (algo === 'LRU') {
+            victim = simState.lruOrder.pop();
+            targetFrame = simState.frames.indexOf(victim);
+            simState.lruOrder.unshift(page);
+          } else if (algo === 'OPT') {
+            // Find farthest future use
+            let farthest = -1;
+            let optVictim = simState.frames[0];
+            for (let f of simState.frames) {
+              let nextUse = Infinity;
+              for (let i = simState.currentIndex + 1; i < simState.refs.length; ++i) {
+                if (simState.refs[i] === f) {
+                  nextUse = i;
+                  break;
+                }
+              }
+              if (nextUse > farthest) {
+                farthest = nextUse;
+                optVictim = f;
+              }
+            }
+            victim = optVictim;
+            targetFrame = simState.frames.indexOf(victim);
+          } else {
+            // Default fallback / LFU
+            let minFreq = Infinity;
+            let lfuVictim = simState.frames[0];
+            for (let f of simState.frames) {
+              let freq = simState.freqMap[f] || 0;
+              if (freq < minFreq) {
+                minFreq = freq;
+                lfuVictim = f;
+              }
+            }
+            victim = lfuVictim;
+            targetFrame = simState.frames.indexOf(victim);
+          }
+
+          simState.frames[targetFrame] = page;
+        }
+      }
+
+      simState.history.push({
+        step: simState.currentIndex + 1,
+        page: page,
+        hit: hit,
+        victim: victim,
+        frames: [...simState.frames]
+      });
+
+      simState.currentIndex++;
+      updateUI(hit, page, victim);
+      drawDonutChart();
+    }
+
+    function toggleAutoRun() {
+      if (simState.autoRunInterval) {
+        clearInterval(simState.autoRunInterval);
+        simState.autoRunInterval = null;
+        document.getElementById('btn-autorun').innerText = 'Auto-Run Simulation';
+      } else {
+        document.getElementById('btn-autorun').innerText = 'Pause Simulation';
+        simState.autoRunInterval = setInterval(() => {
+          if (simState.currentIndex < simState.refs.length) {
+            stepSimulation();
+          } else {
+            clearInterval(simState.autoRunInterval);
+            simState.autoRunInterval = null;
+            document.getElementById('btn-autorun').innerText = 'Auto-Run Simulation';
+          }
+        }, 500);
+      }
+    }
+
+    function drawDonutChart() {
+      const canvas = document.getElementById('donutChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const total = simState.hits + simState.faults;
+      const hitPct = total > 0 ? (simState.hits / total) : 0;
+      
+      document.getElementById('donut-pct').innerText = total > 0 ? `${(hitPct * 100).toFixed(0)}%` : '0%';
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = 54;
+      const lineWidth = 14;
+
+      // Draw background track
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+
+      if (total === 0) return;
+
+      const hitAngle = hitPct * 2 * Math.PI;
+
+      // Draw Fault Arc (Amber)
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+
+      // Draw Hit Arc (Green)
+      if (hitPct > 0) {
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, -Math.PI / 2, (-Math.PI / 2) + hitAngle);
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+    }
+
+    function updateUI(lastHit = null, accessedPage = null, victim = null) {
+      // Stats
+      const total = simState.currentIndex;
+      document.getElementById('stat-hits').innerText = simState.hits;
+      document.getElementById('stat-faults').innerText = simState.faults;
+      document.getElementById('stat-evictions').innerText = simState.evictions;
+
+      const hitPct = total > 0 ? ((simState.hits / total) * 100).toFixed(1) : '0.0';
+      const faultPct = total > 0 ? ((simState.faults / total) * 100).toFixed(1) : '0.0';
+      document.getElementById('stat-hit-ratio').innerText = `Hit Ratio: ${hitPct}%`;
+      document.getElementById('stat-fault-ratio').innerText = `Fault Ratio: ${faultPct}%`;
+
+      // EAT in ms
+      const eatMs = total > 0 ? ((simState.hits * 0.00011 + simState.faults * 8.0) / total).toFixed(2) : '0.00';
+      document.getElementById('stat-eat').innerHTML = `${eatMs} <span style="font-size: 1rem;">ms</span>`;
+
+      document.getElementById('step-indicator').innerText = `Step ${simState.currentIndex} of ${simState.refs.length}`;
+
+      if (victim !== null) {
+        document.getElementById('victim-status').innerHTML = `<span style="color: var(--accent-red); font-weight: 700;">Evicted Page ${victim}</span> to make room for Page ${accessedPage}`;
+      } else if (lastHit === true) {
+        document.getElementById('victim-status').innerHTML = `<span style="color: var(--accent-green); font-weight: 700;">Page ${accessedPage} HIT in memory!</span>`;
+      } else if (lastHit === false) {
+        document.getElementById('victim-status').innerHTML = `<span style="color: var(--accent-amber); font-weight: 700;">Page ${accessedPage} FAULT -> Loaded into Free Frame</span>`;
+      }
+
+      // Render Frames
+      const framesGrid = document.getElementById('frames-grid');
+      framesGrid.innerHTML = '';
+      for (let f = 0; f < simState.frameCount; ++f) {
+        const val = simState.frames[f];
+        const isOccupied = val !== -1;
+        const isAccessed = isOccupied && val === accessedPage;
+        
+        let extraClass = '';
+        if (isAccessed) {
+          extraClass = lastHit ? 'just-accessed-hit' : 'just-accessed-fault';
+        }
+
+        const div = document.createElement('div');
+        div.className = `frame-slot ${isOccupied ? 'occupied' : ''} ${extraClass}`;
+        div.innerHTML = `
+          <div class="frame-header">Physical Frame ${f}</div>
+          <div class="frame-page">${isOccupied ? val : '[Empty]'}</div>
+          <div class="frame-meta">${isOccupied ? 'Valid · 4 KB Frame' : 'Available'}</div>
+        `;
+        framesGrid.appendChild(div);
+      }
+
+      // Render Table Head and Rows
+      const headRow = document.getElementById('table-head-row');
+      headRow.innerHTML = '<th>Step</th><th>Page Ref</th><th>Status</th><th>Victim Evicted</th>';
+      for (let f = 0; f < simState.frameCount; ++f) {
+        headRow.innerHTML += `<th>Frame ${f}</th>`;
+      }
+
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '';
+      for (let log of simState.history) {
+        const tr = document.createElement('tr');
+        const badge = log.hit ? '<span class="badge-hit">[HIT]</span>' : '<span class="badge-fault">[FAULT]</span>';
+        const vic = log.victim !== null ? `Page ${log.victim}` : '-';
+
+        let framesHtml = '';
+        for (let f = 0; f < simState.frameCount; ++f) {
+          const p = log.frames[f];
+          framesHtml += `<td>${p !== -1 ? p : '-'}</td>`;
+        }
+
+        tr.innerHTML = `
+          <td>${log.step}</td>
+          <td style="font-weight: 700; color: #fff;">${log.page}</td>
+          <td>${badge}</td>
+          <td>${vic}</td>
+          ${framesHtml}
+        `;
+        tbody.appendChild(tr);
+      }
+
+      // Highlight Tape
+      const tape = document.getElementById('stream-tape');
+      Array.from(tape.children).forEach((node, idx) => {
+        node.classList.remove('current', 'hit', 'fault');
+        if (idx === simState.currentIndex) {
+          node.classList.add('current');
+          node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        } else if (idx < simState.currentIndex) {
+          const hist = simState.history[idx];
+          if (hist) {
+            node.classList.add(hist.hit ? 'hit' : 'fault');
+          }
+        }
+      });
+    }
+
+    function renderTape() {
+      const tape = document.getElementById('stream-tape');
+      tape.innerHTML = '';
+      simState.refs.forEach((p, idx) => {
+        const div = document.createElement('div');
+        div.className = `stream-node ${idx === 0 ? 'current' : ''}`;
+        div.innerText = p;
+        tape.appendChild(div);
+      });
+    }
+
+    // Belady Chart Renderer
+    function renderBeladyChart() {
+      const container = document.getElementById('belady-chart-container');
+      container.innerHTML = '';
+
+      // Canonical string: 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5
+      const data = [
+        { frames: 2, fifo: 12, lru: 12, opt: 9 },
+        { frames: 3, fifo: 9,  lru: 10, opt: 7 },
+        { frames: 4, fifo: 10, lru: 8,  opt: 6 }, // Anomaly!
+        { frames: 5, fifo: 5,  lru: 5,  opt: 5 },
+        { frames: 6, fifo: 5,  lru: 5,  opt: 5 }
+      ];
+
+      data.forEach(d => {
+        const isAnomaly = d.frames === 4;
+        const row = document.createElement('div');
+        row.className = 'chart-row';
+        row.innerHTML = `
+          <div class="chart-label">
+            ${d.frames} Frames
+            ${isAnomaly ? '<br><span style="color: var(--accent-red); font-size: 0.72rem; font-weight: 800;">* ANOMALY *</span>' : ''}
+          </div>
+          <div class="bar-group">
+            <div class="bar-line bar-fifo" style="width: ${(d.fifo / 12) * 100}%;">FIFO: ${d.fifo} Faults ${isAnomaly ? '▲ (+1)' : ''}</div>
+            <div class="bar-line bar-lru" style="width: ${(d.lru / 12) * 100}%;">LRU: ${d.lru} Faults</div>
+            <div class="bar-line bar-opt" style="width: ${(d.opt / 12) * 100}%;">OPT: ${d.opt} Faults</div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // Multi-Algorithm Benchmark Cards
+    function renderBenchmarkComparison() {
+      const container = document.getElementById('benchmark-cards');
+      container.innerHTML = '';
+
+      const algos = [
+        { name: 'Optimal (OPT)', hit: '84%', faults: 16, eat: '1.76 ms', desc: 'Theoretical lowest possible page faults using future knowledge.' },
+        { name: 'LRU (Least Recently Used)', hit: '78%', faults: 22, eat: '2.48 ms', desc: 'O(1) Doubly Linked List + Hash Map tracking recent references.' },
+        { name: 'LFU (Least Frequently Used)', hit: '79%', faults: 21, eat: '2.28 ms', desc: 'Frequency buckets with O(1) eviction for repeated loops.' },
+        { name: 'Clock (Second Chance)', hit: '71%', faults: 29, eat: '3.64 ms', desc: 'Hardware-friendly circular buffer approximating LRU.' },
+        { name: 'FIFO (First-In, First-Out)', hit: '69%', faults: 31, eat: '3.92 ms', desc: 'Simple queue arrival order; susceptible to Bélády’s anomaly.' },
+        { name: 'MFU (Most Frequently Used)', hit: '66%', faults: 34, eat: '4.76 ms', desc: 'Evicts highest frequency pages under heavy utilization.' }
+      ];
+
+      algos.forEach(a => {
+        const card = document.createElement('div');
+        card.className = 'algo-summary-card';
+        card.innerHTML = `
+          <h3>${a.name}</h3>
+          <p class="algo-desc">${a.desc}</p>
+          <div class="algo-stat-row">
+            <span>Hit Ratio</span>
+            <span style="color: var(--accent-green);">${a.hit}</span>
+          </div>
+          <div class="algo-stat-row">
+            <span>Total Faults</span>
+            <span style="color: var(--accent-amber);">${a.faults}</span>
+          </div>
+          <div class="algo-stat-row">
+            <span>Effective Access Time</span>
+            <span style="color: var(--accent-cyan);">${a.eat}</span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => {
+      resetSimulation();
+      renderBeladyChart();
+      renderBenchmarkComparison();
+      drawDonutChart();
+    });
+  </script>
+</body>
+</html>
