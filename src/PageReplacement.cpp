@@ -84,6 +84,69 @@ AccessResult FIFOReplacement::access(PageNumber page, AccessType type) {
 }
 
 // -------------------------------------------------------------
+// LIFO Implementation (O(1) DLL used as a stack)
+// -------------------------------------------------------------
+LIFOReplacement::LIFOReplacement(size_t frameCount)
+    : PageReplacementAlgorithm(frameCount, "LIFO"),
+      frames(frameCount, -1),
+      frameDirty(frameCount, false) {}
+
+void LIFOReplacement::reset() {
+    loadStack.clear();
+    pageMap.clear();
+    std::fill(frames.begin(), frames.end(), -1);
+    std::fill(frameDirty.begin(), frameDirty.end(), false);
+    metrics = AlgorithmMetrics();
+    metrics.algorithmName = "LIFO";
+    metrics.frameCount = frameCapacity;
+}
+
+AccessResult LIFOReplacement::access(PageNumber page, AccessType type) {
+    ++metrics.totalReferences;
+    AccessResult res; res.page = page; res.type = type;
+    auto it = pageMap.find(page);
+    if (it != pageMap.end()) {
+        // Hit: LIFO only cares about load order, so nothing moves
+        ++metrics.pageHits;
+        res.hit = true;
+        res.allocatedFrame = it->second->data.frame;
+        if (type == AccessType::WRITE) {
+            it->second->data.dirty = true;
+            frameDirty[res.allocatedFrame] = true;
+        }
+    } else {
+        ++metrics.pageFaults;
+        res.pageFault = true;
+        FrameNumber target = 0;
+        if (loadStack.size() < frameCapacity) {
+            for (size_t f = 0; f < frameCapacity; ++f) {
+                if (frames[f] == -1) { target = f; break; }
+            }
+        } else {
+            auto* victimNode = loadStack.getTail(); // O(1): most recently loaded page (top of stack)
+            Entry victim = victimNode->data;
+            res.victimEvicted = true; res.victimPage = victim.page;
+            target = victim.frame;
+            ++metrics.evictions;
+            if (victim.dirty || frameDirty[target]) {
+                res.dirtyWriteback = true;
+                ++metrics.dirtyWritebacks;
+            }
+            pageMap.erase(victim.page);
+            loadStack.pop_back();
+        }
+        bool isDirty = (type == AccessType::WRITE);
+        auto* newNode = loadStack.push_back({page, target, isDirty}); // push onto stack
+        pageMap[page] = newNode;
+        frames[target] = page;
+        frameDirty[target] = isDirty;
+        res.allocatedFrame = target;
+    }
+    res.currentFrames = frames;
+    return res;
+}
+
+// -------------------------------------------------------------
 // LRU Implementation (O(1) DLL + Hash Map)
 // -------------------------------------------------------------
 LRUReplacement::LRUReplacement(size_t frameCount)
@@ -339,17 +402,20 @@ AccessResult OptimalReplacement::access(PageNumber page, AccessType type) {
                 if (frames[f] == -1) { target = f; break; }
             }
         } else {
-            PageNumber victimPage = 0;
+            // Scan frames in order so ties (e.g. two pages never used again)
+            // always go to the lowest frame -> same result on every compiler
+            PageNumber victimPage = static_cast<PageNumber>(frames[0]);
             size_t farthest = 0;
-            for (const auto& kv : resident) {
-                size_t nextUse = findNextUse(kv.first, currentStep + 1);
+            for (size_t f = 0; f < frameCapacity; ++f) {
+                PageNumber candidate = static_cast<PageNumber>(frames[f]);
+                size_t nextUse = findNextUse(candidate, currentStep + 1);
+                if (nextUse == std::numeric_limits<size_t>::max()) {
+                    victimPage = candidate;
+                    break;
+                }
                 if (nextUse > farthest) {
                     farthest = nextUse;
-                    victimPage = kv.first;
-                }
-                if (nextUse == std::numeric_limits<size_t>::max()) {
-                    victimPage = kv.first;
-                    break;
+                    victimPage = candidate;
                 }
             }
             target = resident[victimPage];

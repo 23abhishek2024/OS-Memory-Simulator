@@ -14,8 +14,8 @@ A clean, high-performance **Virtual Memory Simulator & Page Replacement Engine**
 - **Address Translation Pipeline**: Translates Virtual Address $(\text{VPN} + \text{Offset})$ to Physical Address $(\text{PFN} + \text{Offset})$ with TLB caching.
 - **$O(1)$ LRU & LFU Implementations**: Uses a custom **Doubly Linked List** and **Hash Maps** for constant-time $O(1)$ access, promotion, and eviction.
 - **Bélády's Anomaly Verification**: Empirically proves that increasing FIFO frames from 3 to 4 causes page faults to **increase from 9 to 10**, while mathematically verifying that Stack Algorithms (**LRU & Optimal**) remain immune.
-- **Comprehensive Benchmarks**: Evaluates **FIFO, LRU, LFU, MFU, and Optimal** algorithms across memory workloads.
-- **Dual Interface**: Interactive terminal CLI (with live ASCII memory frame state tables) and a clean web dashboard (`web/index.html`).
+- **Comprehensive Benchmarks**: Evaluates **6 algorithms — FIFO, LIFO, LRU, LFU, MFU, and Optimal** — across memory workloads.
+- **Dual Interface**: Interactive terminal CLI (with live ASCII memory frame state tables) and a clean web dashboard (`web/index.html`) that runs the same replacement rules live in the browser (step-by-step simulator, Bélády chart and 6-algorithm benchmark).
 
 ---
 
@@ -35,6 +35,7 @@ A clean, high-performance **Virtual Memory Simulator & Page Replacement Engine**
 | Algorithm | Access Time | Eviction Time | Space Complexity | Description |
 | :--- | :---: | :---: | :---: | :--- |
 | **FIFO** | $O(1)$ | $O(1)$ | $O(F)$ | Evicts the earliest arrived page in physical memory. |
+| **LIFO** | $O(1)$ | $O(1)$ | $O(F)$ | Doubly Linked List used as a stack; evicts the most recently loaded page. |
 | **LRU** | **$O(1)$** | **$O(1)$** | $O(F)$ | Custom Doubly Linked List + Hash Map; evicts least recently accessed page. |
 | **LFU** | **$O(1)$** | **$O(1)$** | $O(F)$ | Frequency buckets + Doubly Linked List; evicts least frequently referenced page. |
 | **MFU** | $O(F)$ | $O(F)$ | $O(F)$ | Evicts most frequently used page under high memory utilization. |
@@ -68,11 +69,11 @@ os_project/
 │
 ├── include/
 │   ├── DoublyLinkedList.hpp    # Handcrafted O(1) Doubly Linked List template
-│   ├── PageReplacement.hpp     # Base class & algorithms (FIFO, LRU, LFU, MFU, Optimal)
+│   ├── PageReplacement.hpp     # Base class & algorithms (FIFO, LIFO, LRU, LFU, MFU, Optimal)
 │   └── VirtualMemory.hpp       # Demand Paging, Page Table, TLB & Belady's Anomaly
 │
 ├── src/
-│   ├── PageReplacement.cpp     # Implementation of all 5 replacement algorithms
+│   ├── PageReplacement.cpp     # Implementation of all 6 replacement algorithms
 │   ├── VirtualMemory.cpp       # Implementation of Virtual Memory & Belady Anomaly
 │   └── main.cpp                # Interactive CLI menu & benchmark comparisons
 │

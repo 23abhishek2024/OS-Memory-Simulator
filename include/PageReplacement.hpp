@@ -110,7 +110,26 @@ public:
     std::vector<int> getFramesState() const override { return frames; }
 };
 
-// 2. LRU (Least Recently Used) - O(1) via Doubly Linked List + Hash Map
+// 2. LIFO (Last-In, First-Out) - O(1) via Doubly Linked List used as a stack
+//    Evicts the page that was loaded most recently. The first pages loaded
+//    stay in memory forever, so it performs poorly; included as a baseline.
+class LIFOReplacement : public PageReplacementAlgorithm {
+private:
+    struct Entry { PageNumber page; FrameNumber frame; bool dirty; };
+    DoublyLinkedList<Entry> loadStack; // Head = oldest load, Tail = most recent load (top of stack)
+    std::unordered_map<PageNumber, DoublyLinkedList<Entry>::Node*> pageMap;
+    std::vector<int> frames;
+    std::vector<bool> frameDirty;
+
+public:
+    explicit LIFOReplacement(size_t frameCount);
+    AccessResult access(PageNumber page, AccessType type = AccessType::READ) override;
+    void reset() override;
+    std::string getName() const override { return "LIFO"; }
+    std::vector<int> getFramesState() const override { return frames; }
+};
+
+// 3. LRU (Least Recently Used) - O(1) via Doubly Linked List + Hash Map
 class LRUReplacement : public PageReplacementAlgorithm {
 private:
     struct Entry { PageNumber page; FrameNumber frame; bool dirty; };
@@ -127,7 +146,7 @@ public:
     std::vector<int> getFramesState() const override { return frames; }
 };
 
-// 3. LFU (Least Frequently Used) - O(1) via Frequency Buckets
+// 4. LFU (Least Frequently Used) - O(1) via Frequency Buckets
 class LFUReplacement : public PageReplacementAlgorithm {
 private:
     struct Entry { PageNumber page; FrameNumber frame; uint32_t freq; bool dirty; };
@@ -146,7 +165,7 @@ public:
     std::vector<int> getFramesState() const override { return frames; }
 };
 
-// 4. MFU (Most Frequently Used)
+// 5. MFU (Most Frequently Used)
 class MFUReplacement : public PageReplacementAlgorithm {
 private:
     struct Entry { PageNumber page; FrameNumber frame; uint32_t freq; uint64_t lastUsed; bool dirty; };
@@ -163,7 +182,7 @@ public:
     std::vector<int> getFramesState() const override { return frames; }
 };
 
-// 5. Optimal (Bélády's Optimal / MIN)
+// 6. Optimal (Bélády's Optimal / MIN)
 class OptimalReplacement : public PageReplacementAlgorithm {
 private:
     std::unordered_map<PageNumber, FrameNumber> resident;

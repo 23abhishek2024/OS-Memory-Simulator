@@ -19,14 +19,15 @@ void runStepByStep() {
 
     std::cout << "\nSelect Algorithm:\n";
     std::cout << "  1. FIFO\n";
-    std::cout << "  2. LRU [O(1) Custom Doubly Linked List + Hash Map]\n";
-    std::cout << "  3. LFU [O(1) Frequency Buckets]\n";
-    std::cout << "  4. MFU\n";
-    std::cout << "  5. Optimal (Bélády's OPT)\n";
-    std::cout << "Choice (1-5) [default: 2]: ";
+    std::cout << "  2. LIFO [O(1) Stack via Doubly Linked List]\n";
+    std::cout << "  3. LRU [O(1) Custom Doubly Linked List + Hash Map]\n";
+    std::cout << "  4. LFU [O(1) Frequency Buckets]\n";
+    std::cout << "  5. MFU\n";
+    std::cout << "  6. Optimal (Bélády's OPT)\n";
+    std::cout << "Choice (1-6) [default: 3]: ";
 
     std::string choiceStr; std::getline(std::cin, choiceStr);
-    int c = 2; if (!choiceStr.empty()) { try { c = std::stoi(choiceStr); } catch (...) { c = 2; } }
+    int c = 3; if (!choiceStr.empty()) { try { c = std::stoi(choiceStr); } catch (...) { c = 3; } }
 
     std::cout << "Enter number of frames [default: 3]: ";
     std::string fStr; std::getline(std::cin, fStr);
@@ -47,9 +48,10 @@ void runStepByStep() {
 
     std::unique_ptr<PageReplacementAlgorithm> algo;
     if (c == 1) algo.reset(new FIFOReplacement(frames));
-    else if (c == 2) algo.reset(new LRUReplacement(frames));
-    else if (c == 3) algo.reset(new LFUReplacement(frames));
-    else if (c == 4) algo.reset(new MFUReplacement(frames));
+    else if (c == 2) algo.reset(new LIFOReplacement(frames));
+    else if (c == 3) algo.reset(new LRUReplacement(frames));
+    else if (c == 4) algo.reset(new LFUReplacement(frames));
+    else if (c == 5) algo.reset(new MFUReplacement(frames));
     else algo.reset(new OptimalReplacement(frames));
 
     std::vector<AccessResult> logs;
@@ -97,6 +99,7 @@ void runBenchmark() {
     algos.emplace_back(new LRUReplacement(frames));
     algos.emplace_back(new LFUReplacement(frames));
     algos.emplace_back(new FIFOReplacement(frames));
+    algos.emplace_back(new LIFOReplacement(frames));
     algos.emplace_back(new MFUReplacement(frames));
 
     std::cout << std::left
@@ -245,10 +248,24 @@ void runTests() {
         OptimalReplacement opt(3); opt.runSimulation(refs);
         assert(opt.getMetrics().pageFaults == 9);
 
-        std::cout << "[PASS] Page fault verification (FIFO: 15, LRU: 12, OPT: 9 faults)\n";
+        LIFOReplacement lifo(3); lifo.runSimulation(refs);
+        assert(lifo.getMetrics().pageFaults == 12);
+
+        std::cout << "[PASS] Page fault verification (FIFO: 15, LRU: 12, LIFO: 12, OPT: 9 faults)\n";
     }
 
-    // Test 3: Bélády's Anomaly Verification
+    // Test 3: LIFO evicts the most recently loaded page
+    {
+        std::vector<MemoryReference> refs = {{1}, {2}, {3}, {4}, {1}};
+        LIFOReplacement lifo(3);
+        std::vector<AccessResult> log;
+        lifo.runSimulation(refs, &log);
+        assert(log[3].victimEvicted && log[3].victimPage == 3); // page 4 replaces 3 (last loaded)
+        assert(log[4].hit);                                      // page 1 (first loaded) is still there
+        std::cout << "[PASS] LIFO evicts the most recently loaded page\n";
+    }
+
+    // Test 4: Bélády's Anomaly Verification
     {
         auto can = BeladyAnomalyDetector::getCanonicalString();
         FIFOReplacement f3(3); f3.runSimulation(can);
@@ -276,7 +293,7 @@ int main(int argc, char* argv[]) {
     while (true) {
         printBanner("OS Memory Simulator · Virtual Memory & Page Replacement Engine");
         std::cout << "  1. Step-by-Step Simulation (Live Memory Frames State)\n";
-        std::cout << "  2. Benchmark All 5 Algorithms (FIFO, LRU, LFU, MFU, Optimal)\n";
+        std::cout << "  2. Benchmark All 6 Algorithms (FIFO, LIFO, LRU, LFU, MFU, Optimal)\n";
         std::cout << "  3. Verify Bélády's Anomaly (Spike Discovery in FIFO)\n";
         std::cout << "  4. Virtual Memory Address Translation Demo (MMU + TLB)\n";
         std::cout << "  5. Run Automated Unit Tests\n";

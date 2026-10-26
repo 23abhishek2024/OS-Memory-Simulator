@@ -52,10 +52,10 @@
             <select id="sim-algo">
               <option value="LRU" selected>LRU (Least Recently Used) [O(1) DLL]</option>
               <option value="FIFO">FIFO (First-In, First-Out)</option>
+              <option value="LIFO">LIFO (Last-In, First-Out)</option>
               <option value="LFU">LFU (Least Frequently Used) [O(1)]</option>
               <option value="MFU">MFU (Most Frequently Used)</option>
               <option value="OPT">Optimal (Bélády's OPT/MIN)</option>
-              <option value="Clock">Clock (Second Chance)</option>
             </select>
           </div>
 
@@ -207,8 +207,8 @@
     <div id="tab-benchmark" class="tab-content">
       <div class="panel">
         <h2 style="font-size: 1.4rem; font-weight: 700; margin-bottom: 8px;">Multi-Algorithm Benchmark Suite</h2>
-        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px;">
-          Side-by-side performance comparison of all 6 algorithms evaluated under a 100-reference Locality of Reference (80/20) workload with 4 physical frames.
+        <p id="benchmark-subtitle" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px;">
+          Side-by-side comparison of all 6 algorithms, computed live on the reference string and frame count from the Simulator tab.
         </p>
         <div class="compare-grid" id="benchmark-cards"></div>
       </div>
@@ -326,32 +326,29 @@ pageMap[page] = newNode;</div>
           </div>
         </div>
 
-        <!-- Clock -->
+        <!-- LIFO -->
         <div class="theory-card">
           <h3>
-            <span>Clock (Second Chance)</span>
-            <span class="complexity-badge">O(1) Amortized · O(F) Space</span>
+            <span>Last-In, First-Out (LIFO)</span>
+            <span class="complexity-badge">O(1) Time · O(F) Space</span>
           </h3>
           <p class="theory-desc">
-            Hardware-efficient approximation of LRU. Uses a circular buffer of frame slots and a sweeping "clock hand". Frames have a reference bit set on hit; the clock hand clears the bit (giving a second chance) or evicts on bit 0.
+            Replaces the page that was loaded <strong>most recently</strong>, like popping a stack. The first pages loaded never leave memory, so only one frame keeps changing. Simple, but usually performs poorly; included as a baseline to compare against FIFO, LRU and Optimal.
           </p>
-          <div class="code-preview">// C++ Clock Sweep
-while (true) {
-    if (clockBuffer[hand].referenceBit) {
-        clockBuffer[hand].referenceBit = false; // 2nd chance
-        hand = (hand + 1) % frameCount;
-    } else {
-        victim = clockBuffer[hand].page; // Victim found!
-        break;
-    }
-}</div>
+          <div class="code-preview">// C++ LIFO Eviction (O(1) stack on the Doubly Linked List)
+auto* victimNode = loadStack.getTail(); // Most recently loaded
+loadStack.pop_back();
+pageMap.erase(victim.page);
+// New page pushed on top of the stack
+loadStack.push_back({newPage, frame});</div>
           <div class="pros-cons">
             <ul class="pros-list">
-              <li>Very close to LRU performance</li>
-              <li>Low hardware/CPU overhead</li>
+              <li>O(1) eviction, minimal bookkeeping</li>
+              <li>No Bélády's anomaly (stack algorithm)</li>
             </ul>
             <ul class="cons-list">
-              <li>May degenerate to FIFO in worst case</li>
+              <li>Old pages stay forever, even if unused</li>
+              <li>Poor hit ratio on most workloads</li>
             </ul>
           </div>
         </div>
